@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Умный словарь пословиц</title>
+    <style>
+        /* === СТИЛЬ: MODERN CLEAN === */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            padding-top: 30px;
+        }
+
+        .list-container {
+            width: 700px;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 20px; }
+
+        /* Управление */
+        .controls-row { display: flex; gap: 10px; margin-bottom: 15px; }
+       
+        #search-box {
+            flex-grow: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;
+        }
+        #category-select {
+            padding: 12px; border: 1px solid #ddd; border-radius: 8px; background: white; cursor: pointer;
+        }
+
+        /* Кнопки языков */
+        .filter-buttons { display: flex; gap: 8px; margin-bottom: 25px; flex-wrap: wrap; }
+       
+        .filter-btn {
+            padding: 8px 16px; border: none; background: #e4e6eb; border-radius: 20px;
+            cursor: pointer; transition: 0.2s; font-size: 14px;
+        }
+        .filter-btn:hover { background: #d8dadf; }
+        .filter-btn.active { background: #1877f2; color: white; }
+
+        /* Карточка */
+        .proverb-item {
+            padding: 15px; margin-bottom: 15px; background: #fff;
+            border-left: 5px solid #1877f2; border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: help;
+            transition: transform 0.2s;
+        }
+        .proverb-item:hover { transform: translateX(5px); }
+
+        .category-tag { font-size: 11px; text-transform: uppercase; color: #65676b; margin-bottom: 4px; }
+        .proverb-text { font-size: 18px; font-weight: 600; color: #050505; }
+
+        /* Подсказка */
+        .tooltip {
+            display: none; margin-top: 10px; padding: 15px; background: #242526;
+            color: white; border-radius: 8px; font-size: 14px; line-height: 1.5;
+            z-index: 100;
+        }
+        .proverb-item:hover .tooltip { display: block; animation: fadeIn 0.3s; }
+       
+        .flag-icon { width: 18px; vertical-align: middle; margin-right: 8px; border-radius: 2px; }
+        hr { border: 0; border-top: 1px solid #3e4042; margin: 10px 0; }
+       
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="list-container">
+        <h1>📚 Сборник Пословиц</h1>
+        <p style="text-align: center; color: #666; font-size: 14px;">В базе: <span id="count-badge">0</span> пословиц</p>
+
+        <div class="controls-row">
+            <input type="text" id="search-box" placeholder="Поиск по фразам..." onkeyup="filterAll()">
+            <select id="category-select" onchange="filterAll()">
+                <option value="all">Все темы</option>
+                <option value="wisdom">🧠 Мудрость</option>
+                <option value="animals">🐺 Животные</option>
+                <option value="work">🔨 Труд/Дело</option>
+                <option value="health">🏥 Здоровье</option>
+                <option value="love">❤️ Любовь/Дружба</option>
+                <option value="time">⏳ Время</option>
+            </select>
+        </div>
+
+        <div class="filter-buttons">
+            <button class="filter-btn active" onclick="setLang('all', this)">🇷🇺 Все</button>
+            <button class="filter-btn" onclick="setLang('en', this)">🇬🇧 EN</button>
+            <button class="filter-btn" onclick="setLang('de', this)">🇩🇪 DE</button>
+            <button class="filter-btn" onclick="setLang('fr', this)">🇫🇷 FR</button>
+            <button class="filter-btn" onclick="setLang('it', this)">🇮🇹 IT</button>
+            <button class="filter-btn" onclick="setLang('es', this)">🇪🇸 ES</button>
+        </div>
+
+        <div id="proverbs-list"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // БАЗА ДАННЫХ (Вот сюда добавляй новые!)
+        // ==========================================
+        const proverbsDB = [
+            // --- МУДРОСТЬ ---
+            { cat: "wisdom", ru: "Тише едешь — дальше будешь", en: "Slow and steady wins the race", it: "Chi va piano, va sano e va lontano", desc: "Делай медленно, но качественно." },
+            { cat: "wisdom", ru: "Век живи — век учись", en: "Live and learn", fr: "On apprend à tout âge", desc: "Учиться нужно всегда." },
+            { cat: "wisdom", ru: "Лучше синица в руках, чем журавль в небе", en: "A bird in the hand is worth two in the bush", de: "Ein Spatz in der Hand ist besser als die Taube auf dem Dach", es: "Más vale pájaro en mano que ciento volando", desc: "Цени то, что имеешь реально, а не мечты." },
+            { cat: "wisdom", ru: "Нет дыма без огня", en: "Nothing is stolen without hands", fr: "Il n’y a pas de fumée sans feu", desc: "У всего есть причина (часто о слухах)." },
+            { cat: "wisdom", ru: "Яблоко от яблони недалеко падает", en: "The apple never falls far from the tree", de: "Der Apfel fällt nicht weit vom Stamm", desc: "Дети похожи на родителей." },
+           
+            // --- ТРУД ---
+            { cat: "work", ru: "Сделал дело — гуляй смело", en: "Business before pleasure", de: "Erst die Arbeit, dann das Vergnügen", desc: "Сначала закончи работу, потом отдыхай." },
+            { cat: "work", ru: "Куй железо, пока горячо", en: "Strike while the iron is hot", fr: "Il faut battre le fer tant qu'il est chaud", it: "Batti il ferro finché è caldo", desc: "Действуй вовремя, не упускай момент." },
+            { cat: "work", ru: "Под лежачий камень вода не течет", en: "A rolling stone gathers no moss", desc: "Если ничего не делать, ничего не изменится. (В английском смысл чуть другой: бродяга добра не наживет)." },
+            { cat: "work", ru: "Глаза боятся, а руки делают", en: "You never know what you can do till you try", de: "Augen glauben sich selbst nicht, aber Hände tun es", desc: "Задача кажется страшной, но если начать — справишься." },
+
+            // --- ЖИВОТНЫЕ ---
+            { cat: "animals", ru: "Волков бояться — в лес не ходить", en: "Nothing ventured, nothing gained", de: "Wer wagt, gewinnt", desc: "Без риска нет успеха." },
+            { cat: "animals", ru: "Дареному коню в зубы не смотрят", en: "Don't look a gift horse in the mouth", es: "A caballo regalado no le mires el diente", desc: "Принимай подарки с благодарностью, не ищи изъяны." },
+            { cat: "animals", ru: "Кот из дома — мыши в пляс", en: "When the cat's away, the mice will play", fr: "Quand le chat n'est pas là, les souris dansent", desc: "Без начальника подчиненные расслабляются." },
+            { cat: "animals", ru: "Одна ласточка весны не делает", en: "One swallow does not a summer make", it: "Una rondine non fa primavera", desc: "Один признак — еще не доказательство." },
+
+            // --- ЗДОРОВЬЕ ---
+            { cat: "health", ru: "В здоровом теле — здоровый дух", en: "A sound mind in a sound body", de: "Ein gesunder Geist in einem gesunden Körper", desc: "Спорт полезен для ума." },
+            { cat: "health", ru: "Одно яблоко в день, и доктор не нужен", en: "An apple a day keeps the doctor away", it: "Una mela al giorno toglie il medico di torno", desc: "Питайтесь правильно." },
+            { cat: "health", ru: "Смех — лучшее лекарство", en: "Laughter is the best medicine", desc: "Позитивный настрой лечит." },
+            { cat: "health", ru: "Чистота — залог здоровья", en: "Cleanliness is next to godliness", desc: "Гигиена очень важна." },
+
+            // --- ЛЮБОВЬ / ДРУЖБА ---
+            { cat: "love", ru: "Старый друг лучше новых двух", en: "Old friends and old wine are best", es: "Más vale amigo viejo que cien nuevos", desc: "Цени проверенных друзей." },
+            { cat: "love", ru: "Друзья познаются в беде", en: "A friend in need is a friend indeed", de: "Freunde erkennt man in der Not", desc: "Настоящая дружба проверяется трудностями." },
+            { cat: "love", ru: "С глаз долой — из сердца вон", en: "Out of sight, out of mind", desc: "Разлука убивает чувства." },
+            { cat: "love", ru: "Любовь слепа", en: "Love is blind", fr: "L'amour est aveugle", it: "L'amore è cieco", desc: "Влюбленный не видит недостатков." },
+
+            // --- ВРЕМЯ ---
+            { cat: "time", ru: "Время лечит", en: "Time heals all wounds", de: "Zeit heilt alle Wunden", desc: "Боль со временем проходит." },
+            { cat: "time", ru: "Время — деньги", en: "Time is money", desc: "Не трать время впустую." },
+            { cat: "time", ru: "Лучше поздно, чем никогда", en: "Better late than never", fr: "Mieux vaut tard que jamais", it: "Meglio tardi che mai", es: "Más vale tarde que nunca", desc: "Сделать с опозданием лучше, чем не сделать вовсе." },
+            { cat: "time", ru: "Утро вечера мудренее", en: "Sleep on it", desc: "Отложи решение сложной проблемы на завтра." },
+            { cat: "time", ru: "Рим не сразу строился", en: "Rome wasn't built in a day", fr: "Paris ne s'est pas fait en un jour", desc: "Большие дела требуют времени." }
+        ];
+
+        // ==========================================
+        // ЛОГИКА (ГЕНЕРАТОР)
+        // ==========================================
+       
+        // 1. Функция создания HTML из базы данных
+        function renderProverbs() {
+            const container = document.getElementById('proverbs-list');
+            container.innerHTML = ''; // Очищаем список
+
+            // Обновляем счетчик
+            document.getElementById('count-badge').innerText = proverbsDB.length;
+
+            proverbsDB.forEach(item => {
+                // Собираем список языков, которые есть у этой поговорки
+                let langs = ['ru']; // Русский есть всегда
+                if(item.en) langs.push('en');
+                if(item.de) langs.push('de');
+                if(item.fr) langs.push('fr');
+                if(item.it) langs.push('it');
+                if(item.es) langs.push('es');
+
+                // Определяем название категории на русском для красоты
+                let catName = "Разное";
+                if(item.cat === 'wisdom') catName = "Мудрость";
+                if(item.cat === 'animals') catName = "Животные";
+                if(item.cat === 'work') catName = "Труд";
+                if(item.cat === 'health') catName = "Здоровье";
+                if(item.cat === 'love') catName = "Любовь";
+                if(item.cat === 'time') catName = "Время";
+
+                // Создаем карточку
+                const div = document.createElement('div');
+                div.className = 'proverb-item';
+                div.setAttribute('data-category', item.cat);
+                div.setAttribute('data-langs', langs.join(' ')); // получится "en de fr"
+
+                // Сохраняем тексты в атрибуты (для переключения)
+                div.setAttribute('data-text-ru', item.ru);
+                if(item.en) div.setAttribute('data-text-en', item.en);
+                if(item.de) div.setAttribute('data-text-de', item.de);
+                if(item.fr) div.setAttribute('data-text-fr', item.fr);
+                if(item.it) div.setAttribute('data-text-it', item.it);
+                if(item.es) div.setAttribute('data-text-es', item.es);
+
+                // Собираем переводы для подсказки
+                let translationsHTML = '';
+                if(item.en) translationsHTML += `<p><img src="https://flagcdn.com/w40/gb.png" class="flag-icon"> ${item.en}</p>`;
+                if(item.de) translationsHTML += `<p><img src="https://flagcdn.com/w40/de.png" class="flag-icon"> ${item.de}</p>`;
+                if(item.fr) translationsHTML += `<p><img src="https://flagcdn.com/w40/fr.png" class="flag-icon"> ${item.fr}</p>`;
+                if(item.it) translationsHTML += `<p><img src="https://flagcdn.com/w40/it.png" class="flag-icon"> ${item.it}</p>`;
+                if(item.es) translationsHTML += `<p><img src="https://flagcdn.com/w40/es.png" class="flag-icon"> ${item.es}</p>`;
+
+                // Вставляем HTML внутрь карточки
+                div.innerHTML = `
+                    <div class="category-tag">${catName}</div>
+                    <div class="proverb-text">${item.ru}</div>
+                    <div class="tooltip">
+                        <p><strong>Значение:</strong> ${item.desc}</p>
+                        ${translationsHTML ? '<hr>' + translationsHTML : ''}
+                    </div>
+                `;
+
+                container.appendChild(div);
+            });
+        }
+
+        // 2. Логика фильтрации (та же, что и раньше, но чуть чище)
+        let currentLang = 'all';
+
+        function setLang(lang, btnElement) {
+            currentLang = lang;
+            let buttons = document.getElementsByClassName('filter-btn');
+            for (let btn of buttons) btn.classList.remove('active');
+            btnElement.classList.add('active');
+            filterAll();
+        }
+
+      function filterAll() {
+            let searchText = document.getElementById('search-box').value.toUpperCase();
+            let selectedCategory = document.getElementById('category-select').value;
+            let items = document.getElementsByClassName('proverb-item');
+
+            for (let item of items) {
+                // --- 1. СМЕНА ЯЗЫКА (Остается как было) ---
+                let textElement = item.querySelector('.proverb-text');
+                if (currentLang === 'all') {
+                    textElement.innerText = item.getAttribute('data-text-ru');
+                } else {
+                    let trans = item.getAttribute('data-text-' + currentLang);
+                    textElement.innerText = trans ? trans : item.getAttribute('data-text-ru');
+                }
+
+                // --- 2. УМНЫЙ ПОИСК (НОВОЕ!) ---
+                // Мы склеиваем только тексты пословиц, игнорируя описание
+                let searchableText =
+                    item.getAttribute('data-text-ru') + " " +
+                    (item.getAttribute('data-text-en') || "") + " " +
+                    (item.getAttribute('data-text-de') || "") + " " +
+                    (item.getAttribute('data-text-fr') || "") + " " +
+                    (item.getAttribute('data-text-it') || "") + " " +
+                    (item.getAttribute('data-text-es') || "");
+
+                // Превращаем в верхний регистр для поиска
+                let matchSearch = searchableText.toUpperCase().includes(searchText);
+               
+                // --- 3. ОСТАЛЬНЫЕ ФИЛЬТРЫ ---
+                let itemLangs = item.getAttribute('data-langs');
+                let matchLang = (currentLang === 'all') || (itemLangs && itemLangs.includes(currentLang));
+               
+                let itemCategory = item.getAttribute('data-category');
+                let matchCategory = (selectedCategory === 'all') || (itemCategory === selectedCategory);
+
+                // ИТОГ
+                if (matchSearch && matchLang && matchCategory) {
+                    item.style.display = "";
+                } else {
+                    item.style.display = "none";
+                }
+            }
+        }
+
+        // ЗАПУСК ПРИ СТАРТЕ
+        // Как только страница загрузилась, строим список
+        renderProverbs();
+
+    </script>
+</body>
+</html>
